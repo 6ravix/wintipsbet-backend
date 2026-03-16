@@ -61,7 +61,7 @@ router.post('/stkpush', protect, async (req, res) => {
       message:           'STK push sent. Enter your M-Pesa PIN.',
     });
   } catch (err) {
-    console.error('STK push error FULL:', JSON.stringify(err.response?.data || err.message);
+    console.error('STK push error FULL:', JSON.stringify(err.response?.data || err.message));
     res.status(500).json({ error: 'Could not initiate payment. Please try again.' });
   }
 });
