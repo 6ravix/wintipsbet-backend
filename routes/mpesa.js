@@ -229,6 +229,13 @@ router.post('/callback', async (req, res) => {
     console.error('Callback error:', err.message);
     res.json({ ResultCode: 0, ResultDesc: 'Accepted' }); // always 200 to Safaricom
   }
+router.get('/test-token', async (req, res) => {
+  try {
+    const token = await getAccessToken();
+    res.json({ success: true, token });
+  } catch (err) {
+    res.json({ success: false, error: err.message, data: err.response?.data });
+  }
 });
 
 module.exports = router;
