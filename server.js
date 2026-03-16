@@ -19,7 +19,8 @@ const authRoutes         = require('./routes/auth');
 const mpesaRoutes        = require('./routes/mpesa');
 const subscriptionRoutes = require('./routes/subscription');
 
-const app  = express();
+const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // ================================================================
