@@ -15,16 +15,16 @@ async function getAccessToken() {
 
   const key    = process.env.MPESA_CONSUMER_KEY;
   const secret = process.env.MPESA_CONSUMER_SECRET;
-
-  console.log('Token fetch - key prefix:', key?.slice(0, 10));
-  console.log('Token fetch - env:', process.env.MPESA_ENV);
-  console.log('Token fetch - base URL:', base());
-
   const creds  = Buffer.from(`${key}:${secret}`).toString('base64');
 
   const { data } = await axios.get(
     `${base()}/oauth/v1/generate?grant_type=client_credentials`,
-    { headers: { Authorization: `Basic ${creds}` } }
+    {
+      headers: {
+        Authorization:   `Basic ${creds}`,
+        'Cache-Control': 'no-cache',
+      }
+    }
   );
 
   _token       = data.access_token;
