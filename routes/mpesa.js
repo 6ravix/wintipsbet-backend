@@ -1,6 +1,6 @@
 const express  = require('express');
 const router   = express.Router();
-const { stkPush, stkQuery } = require('../utils/mpesa');
+const { stkPush, stkQuery, getAccessToken } = require('../utils/mpesa');
 const { planExpiry, expiryLabel } = require('../utils/expiry');
 const { sendPaymentConfirm }      = require('../utils/email');
 const { protect } = require('../middleware/auth');
@@ -9,15 +9,11 @@ const User     = require('../models/User');
 
 // ================================================================
 // POST /mpesa/stkpush
-// Initiates STK push. Requires JWT (logged-in user).
-// Body: { phone, amount, plan }
-// plan: 'daily' | 'weekly' | 'monthly'
 // ================================================================
 router.post('/stkpush', protect, async (req, res) => {
   try {
     let { phone, amount, plan } = req.body;
 
-    // --- Validate ---
     if (!phone || !amount || !plan)
       return res.status(400).json({ error: 'phone, amount and plan are required.' });
 
@@ -25,10 +21,8 @@ router.post('/stkpush', protect, async (req, res) => {
     if (!validPlans[plan])
       return res.status(400).json({ error: 'Invalid plan. Must be daily, weekly or monthly.' });
 
-    // Enforce correct amounts server-side
     amount = validPlans[plan];
 
-    // Normalise phone to 2547XXXXXXXXX
     phone = phone.replace(/\s+/g, '').replace(/^\+/, '');
     if (phone.startsWith('0')) phone = '254' + phone.slice(1);
     if (!/^254[17]\d{8}$/.test(phone))
@@ -37,14 +31,12 @@ router.post('/stkpush', protect, async (req, res) => {
     const accountRef = ('WTB-' + req.user.email.split('@')[0]).toUpperCase().slice(0, 12);
     const desc       = ('WTB ' + plan).slice(0, 13);
 
-    // --- Call Daraja ---
     const darajaRes = await stkPush({ phone, amount, accountRef, desc });
 
     if (darajaRes.ResponseCode !== '0')
       return res.status(502).json({ error: darajaRes.ResponseDescription || 'STK push failed.' });
 
-    // --- Persist pending payment record ---
-    const payment = await Payment.create({
+    await Payment.create({
       userId:            req.user._id,
       email:             req.user.email,
       phone,
@@ -61,15 +53,13 @@ router.post('/stkpush', protect, async (req, res) => {
       message:           'STK push sent. Enter your M-Pesa PIN.',
     });
   } catch (err) {
-    console.error('STK push error FULL:', JSON.stringify(err.response?.data));
+    console.error('STK push error:', JSON.stringify(err.response?.data || err.message));
     res.status(500).json({ error: 'Could not initiate payment. Please try again.' });
   }
 });
 
 // ================================================================
 // POST /mpesa/query
-// Frontend polls this every 5s to check payment status.
-// Body: { checkoutRequestId }
 // ================================================================
 router.post('/query', protect, async (req, res) => {
   try {
@@ -77,7 +67,6 @@ router.post('/query', protect, async (req, res) => {
     if (!checkoutRequestId)
       return res.status(400).json({ error: 'checkoutRequestId required.' });
 
-    // Look up our own record first
     const payment = await Payment.findOne({
       checkoutRequestId,
       userId: req.user._id,
@@ -85,13 +74,11 @@ router.post('/query', protect, async (req, res) => {
     if (!payment)
       return res.status(404).json({ error: 'Payment record not found.' });
 
-    // Already confirmed or failed
     if (payment.status === 'completed')
       return res.json({ paid: true, status: 'completed', plan: payment.plan, accessUntil: payment.accessUntil });
-    if (['failed','cancelled','timeout'].includes(payment.status))
+    if (['failed', 'cancelled', 'timeout'].includes(payment.status))
       return res.json({ paid: false, status: payment.status });
 
-    // --- Still pending: query Daraja ---
     let darajaRes;
     try {
       darajaRes = await stkQuery(checkoutRequestId);
@@ -106,22 +93,21 @@ router.post('/query', protect, async (req, res) => {
     const rc = String(darajaRes.ResultCode);
 
     if (rc === '0') {
-      // PAYMENT SUCCESSFUL
       const expiry = planExpiry(payment.plan);
 
       await Payment.findByIdAndUpdate(payment._id, {
-        status:              'completed',
-        mpesaReceiptNumber:  darajaRes.MpesaReceiptNumber || null,
-        mpesaPhone:          darajaRes.PhoneNumber        || null,
-        accessFrom:          new Date(),
-        accessUntil:         expiry,
-        rawCallback:         darajaRes,
-        completedAt:         new Date(),
+        status:             'completed',
+        mpesaReceiptNumber: darajaRes.MpesaReceiptNumber || null,
+        mpesaPhone:         darajaRes.PhoneNumber        || null,
+        accessFrom:         new Date(),
+        accessUntil:        expiry,
+        rawCallback:        darajaRes,
+        completedAt:        new Date(),
       });
 
       await User.findByIdAndUpdate(req.user._id, {
-        plan:        payment.plan,
-        planExpiry:  expiry,
+        plan:       payment.plan,
+        planExpiry: expiry,
       });
 
       sendPaymentConfirm({
@@ -216,10 +202,13 @@ router.post('/callback', async (req, res) => {
     res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
   } catch (err) {
     console.error('Callback error:', err.message);
-    res.json({ ResultCode: 0, ResultDesc: 'Accepted' }); // always 200 to Safaricom
+    res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
   }
 });
 
+// ================================================================
+// GET /mpesa/test-token  (debug only - remove after testing)
+// ================================================================
 router.get('/test-token', async (req, res) => {
   try {
     const token = await getAccessToken();

@@ -1,5 +1,5 @@
 /**
- * mpesa.js — Safaricom Daraja API v2
+ * mpesa.js - Safaricom Daraja API v2
  * Handles: OAuth token, STK Push initiation, STK Query
  */
 
@@ -43,12 +43,12 @@ function timestamp() {
   return new Date()
     .toISOString()
     .replace(/[^0-9]/g, '')
-    .slice(0, 14);          // YYYYMMDDHHmmss
+    .slice(0, 14); // YYYYMMDDHHmmss
 }
 
 /**
  * Initiate STK Push (Lipa Na M-Pesa Online)
- * @param {string} phone      - Safaricom number in 2547XXXXXXXX format
+ * @param {string} phone      - Safaricom number in 2547XXXXXXXXX format
  * @param {number} amount     - Amount in KES (integer)
  * @param {string} accountRef - e.g. "WTB-USERNAME"
  * @param {string} desc       - Transaction description
@@ -64,13 +64,13 @@ async function stkPush({ phone, amount, accountRef, desc }) {
     Password:          pwd,
     Timestamp:         ts,
     TransactionType:   'CustomerPayBillOnline',
-    Amount:            Math.ceil(amount),   // must be integer
+    Amount:            Math.ceil(amount),
     PartyA:            phone,
     PartyB:            process.env.MPESA_SHORTCODE,
     PhoneNumber:       phone,
     CallBackURL:       process.env.MPESA_CALLBACK_URL,
-    AccountReference:  accountRef.slice(0, 12), // Daraja max 12 chars
-    TransactionDesc:   desc.slice(0, 13),        // Daraja max 13 chars
+    AccountReference:  accountRef.slice(0, 12),
+    TransactionDesc:   desc.slice(0, 13),
   };
 
   const { data } = await axios.post(
@@ -104,4 +104,4 @@ async function stkQuery(checkoutRequestId) {
   return data;
 }
 
-module.exports = { stkPush, stkQuery };
+module.exports = { getAccessToken, stkPush, stkQuery };
