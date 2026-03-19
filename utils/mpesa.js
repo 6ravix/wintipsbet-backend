@@ -1,8 +1,3 @@
-/**
- * mpesa.js - Safaricom Daraja API v2
- * Handles: OAuth token, STK Push initiation, STK Query
- */
-
 const axios = require('axios');
 
 const SANDBOX_BASE = 'https://sandbox.safaricom.co.ke';
@@ -12,7 +7,6 @@ function base() {
   return process.env.MPESA_ENV === 'production' ? LIVE_BASE : SANDBOX_BASE;
 }
 
-// ---- Cache token to avoid re-fetching every request ----
 let _token = null;
 let _tokenExpiry = 0;
 
@@ -21,6 +15,11 @@ async function getAccessToken() {
 
   const key    = process.env.MPESA_CONSUMER_KEY;
   const secret = process.env.MPESA_CONSUMER_SECRET;
+
+  console.log('Token fetch - key prefix:', key?.slice(0, 10));
+  console.log('Token fetch - env:', process.env.MPESA_ENV);
+  console.log('Token fetch - base URL:', base());
+
   const creds  = Buffer.from(`${key}:${secret}`).toString('base64');
 
   const { data } = await axios.get(
@@ -33,7 +32,6 @@ async function getAccessToken() {
   return _token;
 }
 
-// ---- Build Lipa Na M-Pesa password (base64 of shortcode+passkey+timestamp) ----
 function buildPassword(timestamp) {
   const raw = `${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`;
   return Buffer.from(raw).toString('base64');
@@ -43,17 +41,9 @@ function timestamp() {
   return new Date()
     .toISOString()
     .replace(/[^0-9]/g, '')
-    .slice(0, 14); // YYYYMMDDHHmmss
+    .slice(0, 14);
 }
 
-/**
- * Initiate STK Push (Lipa Na M-Pesa Online)
- * @param {string} phone      - Safaricom number in 2547XXXXXXXXX format
- * @param {number} amount     - Amount in KES (integer)
- * @param {string} accountRef - e.g. "WTB-USERNAME"
- * @param {string} desc       - Transaction description
- * @returns {object}          - Daraja response {MerchantRequestID, CheckoutRequestID, ...}
- */
 async function stkPush({ phone, amount, accountRef, desc }) {
   const token = await getAccessToken();
   const ts    = timestamp();
@@ -81,11 +71,6 @@ async function stkPush({ phone, amount, accountRef, desc }) {
   return data;
 }
 
-/**
- * Query STK Push status
- * @param {string} checkoutRequestId
- * @returns {object} Daraja query response
- */
 async function stkQuery(checkoutRequestId) {
   const token = await getAccessToken();
   const ts    = timestamp();
