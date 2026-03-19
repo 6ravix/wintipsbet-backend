@@ -1,4 +1,5 @@
 const axios = require('axios');
+const https = require('https');
 
 const SANDBOX_BASE = 'https://sandbox.safaricom.co.ke';
 const LIVE_BASE    = 'https://api.safaricom.co.ke';
@@ -17,18 +18,23 @@ async function getAccessToken() {
   const secret = process.env.MPESA_CONSUMER_SECRET;
   const creds  = Buffer.from(`${key}:${secret}`).toString('base64');
 
-  const { data } = await axios.get(
+  const response = await axios.get(
     `${base()}/oauth/v1/generate?grant_type=client_credentials`,
     {
       headers: {
         Authorization:   `Basic ${creds}`,
         'Cache-Control': 'no-cache',
-      }
+        'Pragma':        'no-cache',
+      },
+      httpsAgent: new https.Agent({ keepAlive: false }),
     }
   );
 
-  _token       = data.access_token;
-  _tokenExpiry = Date.now() + (Number(data.expires_in) - 30) * 1000;
+  console.log('Token response status:', response.status);
+  console.log('Token response data:', JSON.stringify(response.data));
+
+  _token       = response.data.access_token;
+  _tokenExpiry = Date.now() + (Number(response.data.expires_in) - 30) * 1000;
   return _token;
 }
 
